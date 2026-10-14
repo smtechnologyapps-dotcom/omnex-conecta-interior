@@ -1,0 +1,540 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "project": {
+    "name": "OMNEX Conecta Interior",
+    "organization": "Soluciones Integrales y Globales SM / OMNEX",
+    "framework": "Next.js 15 App Router / React 19 + PWA Offline-First",
+    "targetAgent": "Antigravity 2.0 Logic Synthesizer",
+    "version": "2.0.4",
+    "jurisdiction": "República de Panamá",
+    "legalCompliance": "Ley 81 de 2019 sobre Protección de Datos Personales",
+    "architecture": "Offline-First via IndexedDB + n8n Webhook Reconciler + Supabase Edge Hub"
+  },
+  "routes": [
+    {
+      "id": "route_centro_mando",
+      "path": "/centro-mando",
+      "name": "Centro de Mando & Geoespacial",
+      "category": "Operacional",
+      "rbacLevel": 1,
+      "description": "Monitoreo geoespacial satelital, semáforo de afectación por corregimiento en Los Santos/Herrera, telemetría de unidades todoterreno y navegación Waze.",
+      "layout": "OperationalShell",
+      "stateBindings": ["hazard_map_layers", "fleet_telemetry_cache", "sync_telemetry"],
+      "actions": [
+        {
+          "name": "Filtrar Zona Territorial",
+          "type": "CLIENT_STATE_UPDATE",
+          "target": "active_zone_filter"
+        },
+        {
+          "name": "Navegar con Waze a Vado o Zona Crítica",
+          "type": "EXTERNAL_DEEP_LINK",
+          "handler": "waze_navigate",
+          "urlPattern": "https://waze.com/ul?ll={lat},{lng}&navigate=yes"
+        },
+        {
+          "name": "Asignar y Despachar Unidad 4x4",
+          "type": "N8N_WEBHOOK_TRIGGER",
+          "webhookId": "wh_fleet_dispatch"
+        }
+      ]
+    },
+    {
+      "id": "route_censo_offline",
+      "path": "/censo-offline",
+      "name": "Censo y Registro Offline",
+      "category": "Operacional",
+      "rbacLevel": 2,
+      "description": "Ficha de censo de emergencia con controles táctiles sin texto libre, registro demográfico, geolocalización GNSS, consentimiento Ley 81 y generación de token QR JWT cifrado.",
+      "layout": "OperationalShell",
+      "stateBindings": ["offline_census_queue", "active_family_draft", "device_telemetry"],
+      "actions": [
+        {
+          "name": "Ajustar Conteo Núcleo Familiar",
+          "type": "CLIENT_STATE_UPDATE",
+          "target": "active_family_draft.demographics"
+        },
+        {
+          "name": "Conmutar Prioridad de Discapacidad",
+          "type": "CLIENT_STATE_UPDATE",
+          "target": "active_family_draft.hasDisability"
+        },
+        {
+          "name": "Guardar en IndexedDB & Generar Token Cifrado QR",
+          "type": "LOCAL_STORAGE_PERSIST_AND_GENERATE_JWT",
+          "targetQueue": "offline_census_queue",
+          "nextRoute": "/despacho-qr"
+        },
+        {
+          "name": "Forzar Sincronización n8n",
+          "type": "N8N_WEBHOOK_TRIGGER",
+          "webhookId": "wh_batch_reconcile"
+        }
+      ]
+    },
+    {
+      "id": "route_despacho_qr",
+      "path": "/despacho-qr",
+      "name": "Despacho & Validación QR JWT",
+      "category": "Operacional",
+      "rbacLevel": 2,
+      "description": "Validación óptica y criptográfica de token de un solo uso con geocercado estricto a 500m, cálculo radial de proximidad, inspección de payload y quema atómica de token.",
+      "layout": "OperationalShell",
+      "stateBindings": ["active_jwt_inspection", "local_qr_tokens", "current_gps_coords"],
+      "actions": [
+        {
+          "name": "Verificar Geocerca Domiciliaria",
+          "type": "GEO_DISTANCE_CALCULATION",
+          "maxToleranceMeters": 500
+        },
+        {
+          "name": "Abrir Ruta en Waze",
+          "type": "EXTERNAL_DEEP_LINK",
+          "handler": "waze_navigate",
+          "urlPattern": "https://waze.com/ul?ll={lat},{lng}&navigate=yes"
+        },
+        {
+          "name": "Confirmar Entrega e Invalidar Token (Burn JWT)",
+          "type": "N8N_WEBHOOK_TRIGGER",
+          "webhookId": "wh_burn_token"
+        }
+      ]
+    },
+    {
+      "id": "route_auditoria_ley81",
+      "path": "/auditoria-ley81",
+      "name": "Auditoría, Privacidad Ley 81 & Arquitectura",
+      "category": "Gobernanza",
+      "rbacLevel": 1,
+      "description": "Bento grid de valuación pro-bono institucional ($21,000 USD), matriz comparativa RBAC Nivel 1 (Público) vs Nivel 2 (Operador), bitácora inmutable SHA-256 y póliza de purga de 90 días.",
+      "layout": "OperationalShell",
+      "stateBindings": ["audit_merkle_ledger", "rbac_active_view", "legal_certificates"],
+      "actions": [
+        {
+          "name": "Conmutar Nivel RBAC (Donante / Operador)",
+          "type": "CLIENT_STATE_UPDATE",
+          "target": "rbac_active_view"
+        },
+        {
+          "name": "Exportar CSV Anonimizado",
+          "type": "N8N_WEBHOOK_TRIGGER",
+          "webhookId": "wh_export_csv"
+        },
+        {
+          "name": "Solicitar Acta de Purga Preventiva Ley 81",
+          "type": "N8N_WEBHOOK_TRIGGER",
+          "webhookId": "wh_request_purge_act"
+        },
+        {
+          "name": "Verificar Hashes SHA-256 en Cadena Merkle",
+          "type": "CRYPTOGRAPHIC_INTEGRITY_CHECK",
+          "target": "audit_merkle_ledger"
+        }
+      ]
+    },
+    {
+      "id": "route_portal_pacientes",
+      "path": "/portal-pacientes",
+      "name": "Portal de Pacientes & Beneficiarios",
+      "category": "Comunitario OMNEX",
+      "rbacLevel": 1,
+      "description": "Consulta simplificada y segura para titulares de familia. Permite verificar el estado de su asignación humanitaria y ejercer los derechos ARCO garantizados por la Ley 81.",
+      "layout": "BeneficiaryShell",
+      "stateBindings": ["logged_in_family", "family_dispatch_status"],
+      "actions": [
+        {
+          "name": "Consultar Estatus con Código de Familia",
+          "type": "LOCAL_OR_REMOTE_LOOKUP",
+          "target": "logged_in_family"
+        },
+        {
+          "name": "Eliminar mis datos (Derecho de Cancelación ARCO)",
+          "type": "N8N_WEBHOOK_TRIGGER",
+          "webhookId": "wh_arco_delete_data"
+        },
+        {
+          "name": "Descargar Comprobante de Asignación Cifrada",
+          "type": "CLIENT_DOCUMENT_DOWNLOAD"
+        }
+      ]
+    },
+    {
+      "id": "route_portal_voluntarios",
+      "path": "/portal-voluntarios",
+      "name": "Portal de Voluntarios en Campo",
+      "category": "Comunitario OMNEX",
+      "rbacLevel": 2,
+      "description": "Lista de misiones asignadas por brigada en Azuero, checklist de raciones de víveres/agua, check-in en albergues y escáner rápido de entregas.",
+      "layout": "OperationalShell",
+      "stateBindings": ["volunteer_session", "assigned_missions", "offline_cache"],
+      "actions": [
+        {
+          "name": "Aceptar Misión de Entrega",
+          "type": "CLIENT_STATE_UPDATE",
+          "target": "assigned_missions.status"
+        },
+        {
+          "name": "Reportar Incidencia o Corte de Camino",
+          "type": "N8N_WEBHOOK_TRIGGER",
+          "webhookId": "wh_hazard_incident_report"
+        },
+        {
+          "name": "Ir a Escáner QR de Entrega",
+          "type": "INTERNAL_NAVIGATION",
+          "targetRoute": "/despacho-qr"
+        }
+      ]
+    },
+    {
+      "id": "route_muro_comunicaciones",
+      "path": "/muro-comunicaciones",
+      "name": "Muro de Comunicaciones Humanitarias",
+      "category": "Comunitario OMNEX",
+      "rbacLevel": 1,
+      "description": "Canal oficial verificado para anuncios de emergencia de SINAPROC, Cruz Roja, horarios de abastecimiento de agua y estado de albergues en Los Santos y Herrera.",
+      "layout": "InformationalShell",
+      "stateBindings": ["community_bulletins", "emergency_contacts"],
+      "actions": [
+        {
+          "name": "Llamada de Emergencia SINAPROC (103)",
+          "type": "EXTERNAL_TELEPHONY",
+          "target": "tel:103"
+        },
+        {
+          "name": "Llamada de Emergencia Cruz Roja (118)",
+          "type": "EXTERNAL_TELEPHONY",
+          "target": "tel:118"
+        },
+        {
+          "name": "Llamada de Emergencia Bomberos (104)",
+          "type": "EXTERNAL_TELEPHONY",
+          "target": "tel:104"
+        }
+      ]
+    },
+    {
+      "id": "route_panel_administracion",
+      "path": "/panel-administracion",
+      "name": "Panel de Administración & Junta Técnica",
+      "category": "Dirección Ejecutiva OMNEX",
+      "rbacLevel": 3,
+      "description": "Consola ejecutiva para directivos de OMNEX y coordinadores generales de SINAPROC. Supervisión de inventarios, llaves JWT, endpoints de webhook n8n y métricas de impacto.",
+      "layout": "ExecutiveShell",
+      "stateBindings": ["inventory_allocations", "webhook_configurations", "audit_master_summary"],
+      "actions": [
+        {
+          "name": "Probar Conectividad de Webhooks n8n",
+          "type": "N8N_WEBHOOK_TRIGGER",
+          "webhookId": "wh_ping_n8n_health"
+        },
+        {
+          "name": "Rotar Clave Secreta HMAC/RS256",
+          "type": "SECURITY_CREDENTIAL_ROTATION"
+        },
+        {
+          "name": "Aprobar Remesa Extraordinaria de Insumos",
+          "type": "N8N_WEBHOOK_TRIGGER",
+          "webhookId": "wh_inventory_approval"
+        }
+      ]
+    },
+    {
+      "id": "route_antigravity_spec",
+      "path": "/antigravity-spec",
+      "name": "Especificación Antigravity 2.0 & JSON Viewer",
+      "category": "Arquitectura",
+      "rbacLevel": 1,
+      "description": "Consola de inspección técnica del contrato de datos 'navigation_flow.json' para el agente de programación Antigravity 2.0 con simulador de webhooks en vivo.",
+      "layout": "DevArchitectShell",
+      "stateBindings": ["full_schema_payload", "webhook_execution_logs"],
+      "actions": [
+        {
+          "name": "Descargar navigation_flow.json",
+          "type": "CLIENT_DOCUMENT_DOWNLOAD"
+        },
+        {
+          "name": "Copiar JSON al Portapapeles",
+          "type": "CLIPBOARD_COPY"
+        },
+        {
+          "name": "Ejecutar Test Mock de Webhook",
+          "type": "SIMULATE_N8N_TRIGGER"
+        }
+      ]
+    }
+  ],
+  "stateManagement": {
+    "persistenceStrategy": "IndexedDB (Primary local buffer) + LocalStorage (Session tokens & preferences) + Supabase PostgreSQL (Central cold storage)",
+    "stores": [
+      {
+        "id": "auth_session",
+        "storageType": "LocalStorage",
+        "description": "Credenciales del operador activo, rol RBAC territorial y firma de nodo.",
+        "schema": {
+          "operatorId": "string (ej. 'a.herrera@omnex.pa')",
+          "nodeId": "string (ej. '#PAN-AZ-04')",
+          "role": "enum ['donor_public', 'field_operator', 'executive_admin']",
+          "tokenJWT": "string (JWT firmado)",
+          "sessionExpiresAt": "ISO8601 Timestamp"
+        }
+      },
+      {
+        "id": "offline_census_queue",
+        "storageType": "IndexedDB",
+        "description": "Fichas de censo recolectadas sin conectividad en Azuero esperando reconciliación.",
+        "schema": {
+          "id": "string UUID",
+          "familyCode": "string (ej. 'FAM-PTI-042')",
+          "zone": "string (ej. 'Pedasí / Oria Arriba')",
+          "demographics": {
+            "kids_0_12": "number",
+            "teens_13_17": "number",
+            "adults_18_59": "number",
+            "seniors_60_plus": "number",
+            "hasDisability": "boolean"
+          },
+          "needs": "array of enum ['water', 'food', 'hygiene', 'roof', 'meds', 'solar']",
+          "urgency": "enum ['CRITICO', 'ALTO', 'MODERADO']",
+          "coordinates": {
+            "latitude": "number (7.534200)",
+            "longitude": "number (-80.021100)",
+            "accuracy": "number (±4.2m)"
+          },
+          "ley81Consent": "boolean (true)",
+          "syncStatus": "enum ['PENDING_SYNC', 'SYNCED', 'CONFLICT']",
+          "localHashSHA256": "string",
+          "createdAt": "ISO8601 Timestamp"
+        }
+      },
+      {
+        "id": "jwt_token_registry",
+        "storageType": "IndexedDB",
+        "description": "Registro de tokens efímeros para quema atómica de una sola vez.",
+        "schema": {
+          "tokenId": "string (ej. 'PTI-042-99824X')",
+          "familyCode": "string",
+          "authorizedItems": "array of strings",
+          "geofenceTarget": {
+            "lat": "number",
+            "lng": "number",
+            "radiusMeters": "number (500)"
+          },
+          "status": "enum ['VALID', 'BURNED', 'REVOKED']",
+          "burnedAt": "ISO8601 Timestamp | null",
+          "burnedByOperator": "string | null",
+          "proofHash": "string | null"
+        }
+      },
+      {
+        "id": "hazard_map_layers",
+        "storageType": "Memory & Cache",
+        "description": "Alertas viales de SINAPROC, vados crecidos y semáforo por corregimiento.",
+        "schema": {
+          "lastSatellitePing": "ISO8601 Timestamp",
+          "riverLevelTonosi": "string ('+2.8m Crítico')",
+          "activeCorregimientos": "array of objects with color codes [RED, AMBER, GREEN]"
+        }
+      },
+      {
+        "id": "audit_merkle_ledger",
+        "storageType": "IndexedDB + Supabase",
+        "description": "Registro forense inmutable de todas las transacciones humanitarias según Ley 81.",
+        "schema": {
+          "txId": "string",
+          "timestamp": "ISO8601 Timestamp",
+          "eventType": "enum ['CENSO_REGISTRO', 'QUEMA_TOKEN_QR', 'SYNC_N8N', 'DESPACHO_VALIDADO', 'ARCO_PURGE']",
+          "operatorNode": "string",
+          "locationZone": "string",
+          "sha256Hash": "string",
+          "integrity": "enum ['VALIDO', 'OBSOLETO', 'REVOCADO']"
+        }
+      }
+    ]
+  },
+  "n8nWebhookTriggers": [
+    {
+      "id": "wh_census_submit",
+      "name": "Registro de Nuevo Censo de Familia",
+      "method": "POST",
+      "urlPlaceholder": "https://n8n.omnex.pa/webhook/v1/census-intake",
+      "sourceRoute": "/censo-offline",
+      "uiTriggerElement": "button#btn-save-census ('Guardar en IndexedDB & Generar Token Cifrado QR')",
+      "payloadSchema": {
+        "event": "CENSUS_CREATED",
+        "nodeId": "#PAN-AZ-04",
+        "familyCode": "FAM-PTI-042",
+        "demographics": {
+          "kids": 1,
+          "teens": 0,
+          "adults": 2,
+          "seniors": 1,
+          "disability": false
+        },
+        "needs": ["water", "food"],
+        "urgency": "ALTO",
+        "gps": {
+          "lat": 7.534200,
+          "lng": -80.021100
+        },
+        "consentLaw81": true,
+        "tokenGenerated": "PTI-042-99824X",
+        "timestamp": "2026-10-14T03:35:00Z"
+      },
+      "expectedResponse": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "queuedForSync": true,
+          "merkleLeafHash": "7c22e409bda44f9103e5c92841ad0214ee67"
+        }
+      }
+    },
+    {
+      "id": "wh_batch_reconcile",
+      "name": "Sincronización Batch Asíncrona (Starlink/LTE)",
+      "method": "POST",
+      "urlPlaceholder": "https://n8n.omnex.pa/webhook/v1/batch-reconcile",
+      "sourceRoute": "/censo-offline & /centro-mando",
+      "uiTriggerElement": "button#btn-sync ('Forzar Sincronización')",
+      "payloadSchema": {
+        "event": "OFFLINE_BATCH_SYNC",
+        "nodeId": "#PAN-AZ-04",
+        "pendingCount": 14,
+        "records": "array of offline census items",
+        "currentNetwork": "STARLINK_FAILOVER"
+      },
+      "expectedResponse": {
+        "status": 200,
+        "body": {
+          "reconciled": 14,
+          "conflicts": 0,
+          "supabaseSyncTime": "2026-10-14T03:36:12Z"
+        }
+      }
+    },
+    {
+      "id": "wh_burn_token",
+      "name": "Quema Atómica de Token QR JWT en Despacho",
+      "method": "POST",
+      "urlPlaceholder": "https://n8n.omnex.pa/webhook/v1/burn-token-dispatch",
+      "sourceRoute": "/despacho-qr",
+      "uiTriggerElement": "button#burn-jwt-btn ('Confirmar Entrega e Invalidar Token (Burn JWT)')",
+      "payloadSchema": {
+        "event": "TOKEN_BURNED",
+        "nodeId": "#PAN-AZ-04",
+        "familyCode": "FAM-PTI-042",
+        "tokenRawJWT": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "itemsDelivered": ["WATER_20L_X2", "FOOD_RATION_14D", "PEDIATRIC_KIT"],
+        "geofenceVerification": {
+          "familyCoords": [7.5342, -80.0211],
+          "terminalCoords": [7.5348, -80.0205],
+          "distanceMeters": 78,
+          "isWithinTolerance": true
+        },
+        "operatorEmail": "a.herrera@omnex.pa"
+      },
+      "expectedResponse": {
+        "status": 200,
+        "body": {
+          "burned": true,
+          "blockchainHash": "8f4a2c91bda44e0192bc012dfac88102",
+          "anonymizedPublicDashboardUpdated": true
+        }
+      }
+    },
+    {
+      "id": "wh_arco_delete_data",
+      "name": "Ejercicio de Derechos ARCO (Eliminar mis datos)",
+      "method": "POST",
+      "urlPlaceholder": "https://n8n.omnex.pa/webhook/v1/arco-purge-request",
+      "sourceRoute": "/portal-pacientes",
+      "uiTriggerElement": "button#btn-arco-delete ('Eliminar mis datos / Derecho al Olvido')",
+      "payloadSchema": {
+        "event": "ARCO_DATA_PURGE_REQUEST",
+        "familyCode": "FAM-PTI-042",
+        "lawArticle": "Ley 81 de 2019 - Art. 12 (Derecho de Cancelación)",
+        "applicantHash": "sha256(7-702-1499)",
+        "reason": "SOLICITUD_EXPRESA_TITULAR",
+        "confirmationPin": "99824X"
+      },
+      "expectedResponse": {
+        "status": 200,
+        "body": {
+          "purged": true,
+          "certificateNumber": "CDD-PAN-2026-ARCO-042",
+          "recordsRemoved": ["PII_VAULT", "LOCAL_CACHE", "DESPATCH_MANIFEST"]
+        }
+      }
+    },
+    {
+      "id": "wh_export_csv",
+      "name": "Exportación de CSV Anonimizado Ley 81",
+      "method": "GET",
+      "urlPlaceholder": "https://n8n.omnex.pa/webhook/v1/export-compliance-csv",
+      "sourceRoute": "/auditoria-ley81",
+      "uiTriggerElement": "button#btn-export-csv ('Exportar CSV Anonimizado')",
+      "payloadSchema": {
+        "filter": "PROVINCIA_LOS_SANTOS",
+        "anonymizePII": true,
+        "maskGPS": true,
+        "format": "RFC4180_CSV"
+      },
+      "expectedResponse": {
+        "status": 200,
+        "contentType": "text/csv",
+        "headers": "Provincia,Distrito,Corregimiento,Adultos,Menores,Raciones,AguaLitros,FechaEntrega"
+      }
+    },
+    {
+      "id": "wh_request_purge_act",
+      "name": "Solicitud de Acta de Purga Preventiva 90 Días",
+      "method": "POST",
+      "urlPlaceholder": "https://n8n.omnex.pa/webhook/v1/legal-purge-certificate",
+      "sourceRoute": "/auditoria-ley81",
+      "uiTriggerElement": "button#btn-request-purge ('Solicitar Acta de Purga Preventiva')",
+      "payloadSchema": {
+        "event": "REQUEST_PURGE_ACT",
+        "emergencyDecree": "DECRETO_EMERGENCIA_SISMO_7_7",
+        "daysElapsed": 90,
+        "antaiAuditorNode": "PAN-AZ-8192-AUD"
+      },
+      "expectedResponse": {
+        "status": 200,
+        "body": {
+          "actGenerated": true,
+          "actNumber": "ACTA-PURGA-LEGAL-2026-090",
+          "sha256Seal": "e7f3b890a21cd67ef228190c102a0f8812c7"
+        }
+      }
+    },
+    {
+      "id": "wh_fleet_dispatch",
+      "name": "Asignación y Despacho de Unidad 4x4",
+      "method": "POST",
+      "urlPlaceholder": "https://n8n.omnex.pa/webhook/v1/fleet-dispatch-mission",
+      "sourceRoute": "/centro-mando",
+      "uiTriggerElement": "button#btn-assign-unit ('Asignar Nueva Unidad')",
+      "payloadSchema": {
+        "vehicleId": "HILUX-4X4-02",
+        "driver": "C. Morales",
+        "destinationZone": "Oria Arriba",
+        "payloadCargo": "45 Kits Familiares + Agua Potable",
+        "wazeRoute": "https://waze.com/ul?ll=7.5333,-80.0333&navigate=yes"
+      },
+      "expectedResponse": {
+        "status": 200,
+        "body": {
+          "missionId": "MIS-2026-AZ-088",
+          "status": "DISPATCHED"
+        }
+      }
+    }
+  ],
+  "antigravityImplementationNotes": {
+    "step1_routing": "Implement Next.js App Router subdirectories with shared sidebar shell navigation linking '/centro-mando', '/censo-offline', '/despacho-qr', '/auditoria-ley81', '/portal-pacientes', '/portal-voluntarios', '/muro-comunicaciones', '/panel-administracion', and '/antigravity-spec'.",
+    "step2_state": "Use React Context or Zustand for cross-screen reactivity. For offline storage, wrap indexedDB in a simple key-val promise helper with fallbacks to localStorage.",
+    "step3_waze": "Render all geospatial points with instant action links: 'https://waze.com/ul?ll=' + lat + ',' + lng + '&navigate=yes'.",
+    "step4_security": "Enforce strict Ley 81 masking: In Nivel 1 view, never output plain IDs or names; use SHA-256 slice previews and aggregated metrics.",
+    "step5_n8n_placeholders": "All trigger buttons must dispatch fetch calls to configurable environment webhooks (NEXT_PUBLIC_N8N_WEBHOOK_URL) with mock visual confirmation if network is disconnected."
+  }
+}

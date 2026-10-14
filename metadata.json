@@ -1,0 +1,6 @@
+{
+  "name": "OMNEX Conecta Interior",
+  "description": "Sistema táctico de gestión humanitaria, censo offline-first, validación QR criptográfica y flujo de navegación para OMNEX Interior y Soluciones Integrales y Globales SM.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

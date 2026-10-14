@@ -1,0 +1,18 @@
+{
+  "name": "OMNEX Conecta Interior - Sistema Táctico",
+  "short_name": "OMNEX Conecta",
+  "description": "Sistema de gestión humanitaria offline-first, censo territorial y validación QR criptográfica para OMNEX Interior y Soluciones Integrales y Globales SM.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#050B14",
+  "theme_color": "#050B14",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["utilities", "medical", "government"]
+}
