@@ -6,6 +6,8 @@ const CACHE_NAME = 'omnex-tactical-v2.4.2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
+  '/icon-192.svg',
+  '/icon-512.svg',
   '/favicon.ico',
   '/navigation_flow.json'
 ];

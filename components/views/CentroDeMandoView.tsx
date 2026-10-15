@@ -16,9 +16,12 @@ import {
   PhoneCall, 
   ExternalLink,
   PlusCircle,
-  Clock
+  Clock,
+  Compass,
+  CheckCircle2
 } from 'lucide-react';
 import { ActiveView } from '@/types';
+import { TacticalGIS, HazardZone, RouteHazardAssessment } from '@/lib/gis/offline-geo';
 
 interface CentroDeMandoViewProps {
   onNavigate: (view: ActiveView) => void;
@@ -31,6 +34,26 @@ export const CentroDeMandoView: React.FC<CentroDeMandoViewProps> = ({
 }) => {
   const [selectedZone, setSelectedZone] = useState<'all' | 'tonosi' | 'pedasi' | 'macaracas'>('all');
   const [activeHotspot, setActiveHotspot] = useState<string | null>(null);
+  const [selectedBasin, setSelectedBasin] = useState<string>('ZONE-AZ-TONOSI');
+  const [routeAssessment, setRouteAssessment] = useState<RouteHazardAssessment>(() => {
+    return TacticalGIS.assessTacticalRoute(
+      { lat: 7.7667, lng: -80.2833 },
+      { lat: 7.4200, lng: -80.4600 }
+    );
+  });
+
+  const handleSelectBasin = (basinId: string) => {
+    setSelectedBasin(basinId);
+    const targetZone = TacticalGIS.HAZARD_ZONES.find((z) => z.id === basinId);
+    if (targetZone) {
+      const assessment = TacticalGIS.assessTacticalRoute(
+        { lat: 7.7667, lng: -80.2833 },
+        { lat: targetZone.polygon[0][0], lng: targetZone.polygon[0][1] }
+      );
+      setRouteAssessment(assessment);
+      onShowToast(`Geocerca ${targetZone.riverBasin}: ${assessment.distanceKm} km evaluados.`, 'navigation');
+    }
+  };
 
   const handleAssignUnit = () => {
     onShowToast('Nueva unidad 4x4 Hilux asignada a cuadrante Tonosí Sur vía n8n webhook', 'truck');
@@ -385,6 +408,92 @@ export const CentroDeMandoView: React.FC<CentroDeMandoViewProps> = ({
               <div>
                 <span className="text-[11px] uppercase tracking-wider text-slate-500 block">Brigadas en Tránsito</span>
                 <span className="text-sm font-bold text-slate-900 font-mono">4 Unidades 4x4</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Tactical GIS & Geofencing Panel (Module M4) */}
+          <div className="mt-4 p-4 rounded-xl bg-slate-950 text-white border border-teal-500/30 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-2">
+                <Compass className="w-4 h-4 text-teal-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-teal-300">
+                  M4. Motor GIS & Geocercas Offline (Point-in-Polygon)
+                </span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                WGS84 Esferoide · Ray-Casting
+              </span>
+            </div>
+
+            {/* Basin Selector Tabs */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {TacticalGIS.HAZARD_ZONES.map((zone) => {
+                const isSelected = selectedBasin === zone.id;
+                return (
+                  <button
+                    key={zone.id}
+                    onClick={() => handleSelectBasin(zone.id)}
+                    className={`p-2.5 rounded-lg text-left transition-all border flex flex-col justify-between ${
+                      isSelected
+                        ? 'bg-teal-950/70 border-teal-500 text-white shadow-sm'
+                        : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-xs font-bold truncate">{zone.riverBasin}</span>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                        zone.riskLevel === 'CRITICO' ? 'bg-red-500 text-white' :
+                        zone.riskLevel === 'ALTO' ? 'bg-amber-500 text-slate-950' : 'bg-emerald-500 text-slate-950'
+                      }`}>
+                        {zone.riskLevel}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1 text-[10px] font-mono text-slate-400">
+                      <span>Nivel: {zone.waterLevelCm} cm</span>
+                      <span className="text-teal-400">Límite: {zone.thresholdMaxCm} cm</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Selected Route Telemetry Strip */}
+            <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-teal-300 font-bold">
+                    Distancia Geodésica Haversine: {routeAssessment.distanceKm} km
+                  </span>
+                  <span className="text-slate-500">·</span>
+                  <span className="text-slate-400 font-mono">
+                    ({routeAssessment.straightLineMeters.toLocaleString()} m línea recta)
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 font-sans leading-snug">
+                  {routeAssessment.safePassageRecommendation}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={routeAssessment.wazeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs flex items-center gap-1 transition-colors"
+                >
+                  <Navigation className="w-3 h-3" />
+                  <span>Waze SOS</span>
+                </a>
+                <a
+                  href={routeAssessment.googleMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium text-xs flex items-center gap-1 border border-slate-700 transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>Google Maps</span>
+                </a>
               </div>
             </div>
           </div>

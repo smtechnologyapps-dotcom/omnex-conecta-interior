@@ -281,6 +281,93 @@ async function main() {
   });
 
   // =========================================================================
+  // SUITE 7: Motor GIS Táctico & Geocercas Offline (Módulo M4)
+  // =========================================================================
+  await runTest('Motor GIS Offline', 'Verificar motor TacticalGIS y cálculo Haversine', async () => {
+    const gisPath = path.join(ROOT_DIR, 'lib', 'gis', 'offline-geo.ts');
+    expect(fs.existsSync(gisPath)).toBe(true);
+
+    const { TacticalGIS } = await import('../lib/gis/offline-geo');
+    const baseLasTablas = { lat: 7.7667, lng: -80.2833 };
+    const tonosi = { lat: 7.4200, lng: -80.4600 };
+
+    const distance = TacticalGIS.calculateHaversineDistance(baseLasTablas, tonosi);
+    expect(distance).toBeGreaterThan(35);
+    expect(distance).toBeGreaterThan(0);
+
+    // Test Point in Polygon Ray-Casting
+    const insideTonosi = TacticalGIS.assessHazardForLocation(tonosi);
+    expect(insideTonosi !== null).toBe(true);
+    expect(insideTonosi?.riskLevel).toBe('CRITICO');
+
+    // Test assessment route
+    const assessment = TacticalGIS.assessTacticalRoute(baseLasTablas, tonosi);
+    expect(assessment.intersectsHazard).toBe(true);
+    expect(assessment.wazeUrl).toContain('waze.com/ul');
+  });
+
+  // =========================================================================
+  // SUITE 8: Assets PWA de Grado Institucional (SVG Icons & Shortcuts)
+  // =========================================================================
+  await runTest('PWA Engine', 'Verificar iconos vectoriales SVG e integración en manifest.json', () => {
+    const icon192Path = path.join(ROOT_DIR, 'public', 'icon-192.svg');
+    const icon512Path = path.join(ROOT_DIR, 'public', 'icon-512.svg');
+    const manifestPath = path.join(ROOT_DIR, 'public', 'manifest.json');
+
+    expect(fs.existsSync(icon192Path)).toBe(true);
+    expect(fs.existsSync(icon512Path)).toBe(true);
+
+    const icon192 = fs.readFileSync(icon192Path, 'utf8');
+    const icon512 = fs.readFileSync(icon512Path, 'utf8');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+
+    expect(icon192).toContain('<svg');
+    expect(icon512).toContain('<svg');
+    expect(manifest.icons.some((i: { src: string }) => i.src === '/icon-192.svg')).toBe(true);
+    expect(manifest.icons.some((i: { src: string }) => i.src === '/icon-512.svg')).toBe(true);
+    expect(Array.isArray(manifest.shortcuts)).toBe(true);
+    expect(manifest.shortcuts.length).toBeGreaterThan(1);
+  });
+
+  // =========================================================================
+  // SUITE 9: Auditoría Estricta de Privacidad Personal
+  // =========================================================================
+  await runTest('Auditoría Privacidad', 'Certificar CERO exposición de RUC personal o teléfono privado en código fuente', () => {
+    const targetDirs = ['app', 'components', 'hooks', 'lib', 'types'];
+    const personalPatterns = [/8-829-1163/i, /6509-1352/i];
+    let violations = 0;
+    const violatedFiles: string[] = [];
+
+    function scan(dir: string) {
+      if (!fs.existsSync(dir)) return;
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          scan(full);
+        } else if (entry.isFile() && /\.(tsx?|json|css|js)$/.test(entry.name)) {
+          const content = fs.readFileSync(full, 'utf8');
+          for (const pattern of personalPatterns) {
+            if (pattern.test(content)) {
+              violations++;
+              violatedFiles.push(path.relative(ROOT_DIR, full));
+            }
+          }
+        }
+      }
+    }
+
+    for (const d of targetDirs) {
+      scan(path.join(ROOT_DIR, d));
+    }
+
+    if (violations > 0) {
+      throw new Error(`Violación de privacidad detectada en: ${violatedFiles.join(', ')}`);
+    }
+    expect(violations).toBe(0);
+  });
+
+  // =========================================================================
   // REPORTE FINAL CONCISO
   // =========================================================================
   console.log('\n📊 RESULTADOS DE LA EJECUCION DEL HARNESS:\n');

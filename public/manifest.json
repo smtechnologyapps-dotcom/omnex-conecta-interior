@@ -1,18 +1,56 @@
 {
   "name": "OMNEX Conecta Interior - Sistema Táctico",
   "short_name": "OMNEX Conecta",
-  "description": "Sistema de gestión humanitaria offline-first, censo territorial y validación QR criptográfica para OMNEX Interior y Soluciones Integrales y Globales SM.",
+  "description": "Sistema táctico de gestión humanitaria, censo territorial offline-first, validación QR criptográfica y despacho para OMNEX Interior y Soluciones Integrales y Globales SM.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "window-controls-overlay", "minimal-ui"],
   "orientation": "portrait-primary",
   "background_color": "#050B14",
   "theme_color": "#050B14",
   "icons": [
     {
-      "src": "/favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ],
-  "categories": ["utilities", "medical", "government"]
+  "shortcuts": [
+    {
+      "name": "Censo Territorial Offline",
+      "short_name": "Censo",
+      "description": "Registrar nuevo censo familiar en campo sin conexión",
+      "url": "/?view=censo-offline",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Despacho & Quema QR",
+      "short_name": "Despacho",
+      "description": "Validación criptográfica y quema atómica de raciones",
+      "url": "/?view=despacho-qr",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Centro de Mando (COE)",
+      "short_name": "Comando",
+      "description": "Telemetría táctica y mapa de afectación en tiempo real",
+      "url": "/?view=centro-mando",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "192x192" }]
+    }
+  ],
+  "categories": ["utilities", "medical", "government", "productivity"]
 }

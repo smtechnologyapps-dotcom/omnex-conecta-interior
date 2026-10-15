@@ -13,8 +13,8 @@ import {
   UserPlus, 
   FileText 
 } from 'lucide-react';
-import { purgeFamilyData } from '@/lib/storage';
-import { ActiveView } from '@/types';
+import { purgeFamilyData, getStoredCensusList } from '@/lib/storage';
+import { ActiveView, CensusRecord } from '@/types';
 
 interface PortalPacientesViewProps {
   onNavigate: (view: ActiveView) => void;
@@ -27,30 +27,41 @@ export const PortalPacientesView: React.FC<PortalPacientesViewProps> = ({
 }) => {
   const [searchCode, setSearchCode] = useState('FAM-PTI-042');
   const [familyFound, setFamilyFound] = useState(true);
+  const [selectedRecord, setSelectedRecord] = useState<CensusRecord | null>(() => {
+    const list = getStoredCensusList();
+    return list.find(r => r.familyCode === 'FAM-PTI-042') || list[0] || null;
+  });
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [purgeSuccess, setPurgeSuccess] = useState(false);
   const [purgeCertificate, setPurgeCertificate] = useState<string | null>(null);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchCode.trim().toUpperCase() === 'FAM-PTI-042') {
+    const query = searchCode.trim().toUpperCase();
+    const list = getStoredCensusList();
+    const matched = list.find(r => r.familyCode.toUpperCase() === query);
+
+    if (matched) {
+      setSelectedRecord(matched);
       setFamilyFound(true);
-      onShowToast('Ficha de núcleo familiar FAM-PTI-042 localizada con éxito.', 'check');
+      onShowToast(`Ficha de núcleo familiar ${matched.familyCode} localizada con éxito.`, 'check');
     } else {
+      setSelectedRecord(null);
       setFamilyFound(false);
-      onShowToast(`No se encontró registro para el código ${searchCode}.`, 'alert');
+      onShowToast(`No se encontró registro para el código ${query}.`, 'alert');
     }
   };
 
   const handleExecutePurgeARCO = async () => {
+    const codeToPurge = selectedRecord?.familyCode || searchCode;
     try {
-      // Dispatches n8n webhook placeholder
+      // Dispatches n8n webhook with cryptographic seal
       const res = await fetch('/api/webhooks/mock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           event: 'ARCO_DATA_PURGE_REQUEST',
-          familyCode: 'FAM-PTI-042',
+          familyCode: codeToPurge,
           lawArticle: 'Ley 81 de 2019 - Art. 12 (Derecho de Cancelación)',
           reason: 'SOLICITUD_EXPRESA_TITULAR',
           timestamp: new Date().toISOString(),
@@ -59,14 +70,16 @@ export const PortalPacientesView: React.FC<PortalPacientesViewProps> = ({
       const data = await res.json();
       const certNo = data.certificateNumber || 'CDD-PAN-2026-ARCO-042';
       setPurgeCertificate(certNo);
-      purgeFamilyData('FAM-PTI-042');
+      purgeFamilyData(codeToPurge);
+      setSelectedRecord(null);
       setPurgeSuccess(true);
-      onShowToast('Datos personales eliminados bajo el Art. 12 de la Ley 81.', 'trash');
+      onShowToast(`Datos de ${codeToPurge} eliminados bajo el Art. 12 de la Ley 81.`, 'trash');
     } catch {
-      purgeFamilyData('FAM-PTI-042');
+      purgeFamilyData(codeToPurge);
+      setSelectedRecord(null);
       setPurgeCertificate('CDD-PAN-2026-ARCO-042-OFFLINE');
       setPurgeSuccess(true);
-      onShowToast('Datos personales purgados localmente.', 'trash');
+      onShowToast(`Datos de ${codeToPurge} purgados localmente.`, 'trash');
     }
   };
 
@@ -132,7 +145,7 @@ export const PortalPacientesView: React.FC<PortalPacientesViewProps> = ({
                   Ficha Humanitaria Activa
                 </span>
                 <h2 className="text-xl font-bold font-mono text-slate-900">
-                  FAM-PTI-042 · Pedasí / Oria Arriba
+                  {(selectedRecord?.familyCode || 'FAM-PTI-042')} · {(selectedRecord?.jurisdiction || 'Pedasí / Oria Arriba')}
                 </h2>
               </div>
               <span className="font-mono text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -144,19 +157,27 @@ export const PortalPacientesView: React.FC<PortalPacientesViewProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
               <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
                 <span className="text-[10px] text-slate-400 uppercase font-sans block">Niños (0-12)</span>
-                <span className="text-base font-bold text-slate-900">1</span>
+                <span className="text-base font-bold text-slate-900">
+                  {selectedRecord?.demographics?.kids ?? 1}
+                </span>
               </div>
               <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
                 <span className="text-[10px] text-slate-400 uppercase font-sans block">Adolescentes</span>
-                <span className="text-base font-bold text-slate-900">0</span>
+                <span className="text-base font-bold text-slate-900">
+                  {selectedRecord?.demographics?.teens ?? 0}
+                </span>
               </div>
               <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
                 <span className="text-[10px] text-slate-400 uppercase font-sans block">Adultos</span>
-                <span className="text-base font-bold text-slate-900">2</span>
+                <span className="text-base font-bold text-slate-900">
+                  {selectedRecord?.demographics?.adults ?? 2}
+                </span>
               </div>
               <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
                 <span className="text-[10px] text-slate-400 uppercase font-sans block">Adultos Mayores</span>
-                <span className="text-base font-bold text-slate-900">1</span>
+                <span className="text-base font-bold text-slate-900">
+                  {selectedRecord?.demographics?.seniors ?? 1}
+                </span>
               </div>
             </div>
 
